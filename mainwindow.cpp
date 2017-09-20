@@ -18,17 +18,13 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::writeInputNumbers(int x , int y , int z)
-{
-
-}
-
 void MainWindow::on_confirmbutton_clicked()
 {
     int x = ui->lineEdit->text().toInt();
     int y = ui->lineEdit_2->text().toInt();
     int z = ui->lineEdit_3->text().toInt();
-
+    
+    //change he file output location
     QFile outputFile("C:/Users/Taylor/Desktop/fall17/output.txt");
     outputFile.open((QIODevice::WriteOnly | QIODevice::Text));
     QTextStream out(&outputFile);
