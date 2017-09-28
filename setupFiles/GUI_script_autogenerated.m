@@ -36,14 +36,9 @@ if(isempty(sim))
 else
     path_string = CASPR_configuration.LoadHomePath();
     % Check if the log folder exists
-    if((exist([path_string,'/data'],'dir')~=7)||(exist([path_string,'/data/videos'],'dir')~=7))
-        if((exist([path_string,'/data'],'dir')~=7))
-            mkdir([path_string,'/data']);
-        end
-        mkdir([path_string,'/data/videos']);
-    end      
-    file_name = [path_string,'/data/videos/kinematics_gui_output.avi'];
-    [file,path] = uiputfile(file_name,'Save file name');
-    sim.plotMovie(model_config.displayRange, model_config.viewAngle, [path,file], sim.timeVector(length(sim.timeVector)), 700, 700);
+        
+    file_name = 'C:\Users\Martin\Downloads\CASPR-master\CASPR-master\data\videos\kinematics_gui_output.avi';
+    
+    sim.plotMovie(model_config.displayRange, model_config.viewAngle, file_name, sim.timeVector(length(sim.timeVector)), 700, 700);
 end
 disp('Finished Plotting Simulation');
