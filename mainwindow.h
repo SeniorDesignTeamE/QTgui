@@ -20,6 +20,14 @@ public:
 private slots:
     void on_confirmbutton_clicked();
 
+    void on_confirmbutton_2_pressed();
+
+    void on_confirmbutton_3_clicked();
+
+    void on_confirmbutton_4_clicked();
+
+    void on_confirmbutton_5_clicked();
+
 private:
     Ui::MainWindow *ui;
     void writeInputNumbers(int x, int y, int z);
