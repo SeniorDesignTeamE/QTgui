@@ -30,7 +30,7 @@ disp('Finished Running Simulation');
 % Refer to the simulator classes to see what can be plotted.
 disp('Start Plotting Simulation');
 %sim.plotJointSpace();
-%sim.plotCableLengths();
+sim.plotCableLengths();
 if(isempty(sim))
     warning('No simulator has been generated. Please press run first'); %#ok<WNTAG>
 else
