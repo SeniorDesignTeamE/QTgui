@@ -53,15 +53,7 @@ classdef (Abstract) MotionSimulatorBase < SimulatorBase
             end
             length_array = cell2mat(obj.cableLengths);
             dlmwrite('C:\Users\Martin\Desktop\array.txt', length_array);
-            if(nargin <= 1||isempty(plot_axis))
-                figure;
-                plot(obj.timeVector, length_array(cables_to_plot, :), 'LineWidth', 1.5, 'Color', 'k');
-                title('Cable Lengths');
-            else
-                plot(plot_axis,obj.timeVector, length_array(cables_to_plot, :), 'LineWidth', 1.5, 'Color', 'k'); 
-            end
-            xlabel('Time (s)');
-            ylabel('Lengths (m)');
+            
         end
         
         % Plots the cable lengths derivative of the CDPR over the trajectory. Users
