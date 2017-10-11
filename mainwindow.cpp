@@ -12,9 +12,8 @@
 #include<QMediaPlayer>
 #include<QVideoWidget>
 #include<QMediaPlaylist>
-#include<QSerialPort>
-#include<QSerialPortInfo>
 #include<windows.h>
+
 
 //Some unnecessary includes, added and removed includes while figuring out the file
 //will remove later
@@ -22,21 +21,85 @@
 //COM port necessary for communication, changes depending on machine connected to the Teensy
 
 #define stepSize 0.000475
-#define COM_PORT "COM8"
-#define baud_rate 12000000
+using namespace std;
 
 
 int runs=0;
 bool simulated=true;
+bool init=false;
+vector <vector <float>> cableLenMat;
+vector <vector <float>> stepMat;
 
-std::vector <std::vector <float>> cableLenMat;
-std::vector <std::vector <float>> stepMat;
-using namespace std;
 
 void writePoint(float a, float b, float c);
 void stepCalc();
 void serialCom();
 void packetizer();
+
+class point {
+   public:
+      float x;
+      float y;
+      float z;
+};
+point::point(float x, float y, float z){
+    x=x;
+    y=y;
+    z=z;
+
+}
+
+class trajectory {
+   public:
+      QString trajDir;
+      QString fileHeader;
+      QString fileCloser;
+      QString openPoint;
+      QString closePoint;
+      QString qDot;
+      int len;
+      vector<point> points;
+};
+trajectory::trajectory(void){
+    trajDir="C:\\Users\\Martin\\Downloads\\CASPR-master\\CASPR-master\\data\\model_config\\models\\SCDM\\spatial_manipulators\\PoCaBot_spatial\\PoCaBot_spatial_trajectories.xml";
+    fileHeader="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE trajectories SYSTEM \"../../../../templates/trajectories.dtd\">\n<trajectories>\n\t<joint_trajectories>\n\t\t<quintic_spline_trajectory id=\"traj_1\" time_definition = \"relative\" time_step=\"0.05\">\n\t\t\t<points>";
+    fileCloser="\n\t\t</quintic_spline_trajectory>\n\t</joint_trajectories>\n</trajectories>";
+    openPoint="\n\t\t\t\t<point>";
+    closePoint="\n\t\t\t</points>";
+    qDot="\n\t\t\t\t\t<q_dot>0.0 0.0 0.0 0.0 0.0 0.0</q_dot>\n\t\t\t\t\t<q_ddot>0.0 0.0 0.0 0.0 0.0 0.0</q_ddot>";
+    len=0;
+    return;
+}
+void trajectory::addPoint(float x, float y, float z){
+    len++;
+    point temp(x,y,z);
+    points.push_back(temp);
+    return;
+}
+void trajectory::clearTraj(void){
+    points.clear();
+    len=0;
+}
+void trajectory::writeToFile(void){
+    int count, temp;
+    QFile outputFile(trajDir);
+    outputFile.open((QIODevice::WriteOnly | QIODevice::Text));
+    QTextStream out(&outputFile);
+    out<<fileHeader;
+    temp=points.size();
+    for(count=0; count<temp; count++){
+        float a=points[count].x, b=points[count].y, c=points[count].z;
+        a=a/100;
+        b=b/100;
+        c=c/100;
+        QString coor = "\n\t\t\t\t\t<q>" + QString::number(a) + " " + QString::number(b) + " " + QString::number(c)+" 0.0 0.0 0.0</q>";
+        out<<openPoint<<coor<<qDot<<closePoint;
+    }
+    out<<fileCloser;
+    outputFile.close();
+    return;
+}
+
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -56,71 +119,23 @@ MainWindow::~MainWindow()
 */
 void MainWindow::on_confirmbutton_clicked()
 {
-
+    if(!init){
+        trajectory traj();
+        init=true;
+    }
     int x = ui->lineEdit->text().toFloat();
     int y = ui->lineEdit_2->text().toFloat();
     int z = ui->lineEdit_3->text().toFloat();
-    writePoint(x,y,z);
-    std::cout<<"button"<<endl;
+    traj.addPoint(x,y,z);
 }
 /*Finish button pressed:
  * XML trajectory is completed with tailing strings to match CASPR format.
- * Writes the file and is ready to simulate with CASPR
 */
 void MainWindow::on_confirmbutton_2_pressed(){
-    QString closePoints = "\n\t\t\t</points>";
-    QString closeP = "\n\t\t</quintic_spline_trajectory>\n\t</joint_trajectories>\n</trajectories>";
-    //replace with your directory for the xml file
-    QFile outputFile("C:\\Users\\Martin\\Downloads\\CASPR-master\\CASPR-master\\data\\model_config\\models\\SCDM\\spatial_manipulators\\PoCaBot_spatial\\PoCaBot_spatial_trajectories.xml");
-    outputFile.open((QIODevice::WriteOnly | QIODevice::Append));
-    QTextStream out(&outputFile);
-    out<<closePoints << closeP;
-    outputFile.close();
+    traj.writeToFile();
     return;
 }
 
-/*Coordinates taken in as cm, converted to meters for CASPR simulation
- * coordinates written to XML trajectory.
- * If it is the first point in the trajectory, header strings included.
- *
- * ******* Currently overwrites the sane trajectory over. Add multiple file loads in final build?
-*/
-void writePoint(float a, float b, float c) {
-    a=a/100;
-    b=b/100;
-    c=c/100;
-    QString point = "\n\t\t\t\t<point>";
-    QString closePoint = "\n\t\t\t\t</point>";
-    QString qDot = "\n\t\t\t\t\t<q_dot>0.0 0.0 0.0 0.0 0.0 0.0</q_dot>\n\t\t\t\t\t<q_ddot>0.0 0.0 0.0 0.0 0.0 0.0</q_ddot>";
-    QString coor = "\n\t\t\t\t\t<q>" + QString::number(a) + " " + QString::number(b) + " " + QString::number(c)+" 0.0 0.0 0.0</q>";
-    //write point, coor+qDot and then closePoint
-    //replace with your directory for the xml file
-    QFile outputFile("C:\\Users\\Martin\\Downloads\\CASPR-master\\CASPR-master\\data\\model_config\\models\\SCDM\\spatial_manipulators\\PoCaBot_spatial\\PoCaBot_spatial_trajectories.xml");
-
-    if(runs==0){ //if first coordinate
-        QString head="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE trajectories SYSTEM \"../../../../templates/trajectories.dtd\">";
-        QString open = "\n<trajectories>\n\t<joint_trajectories>";
-        QString openP = "\n\t\t<quintic_spline_trajectory id=\"traj_1\" time_definition = \"relative\" time_step=\"0.05\">";
-        QString points = "\n\t\t\t<points>";
-        outputFile.open((QIODevice::WriteOnly | QIODevice::Text));
-        QTextStream out(&outputFile);
-        out<<head+open+openP+points;
-        out<<point << coor << qDot << closePoint;
-        outputFile.close();
-        runs++;
-    }
-    else{
-        float time= runs; //control speed of cable robot with constant multiplied. inverse relationship between constant and speed
-        QString point = "\n\t\t\t\t<point time=\""+ QString::number(time)+ "\">";
-        outputFile.open((QIODevice::WriteOnly | QIODevice::Append));
-        QTextStream out(&outputFile);
-        out<<point << coor << qDot << closePoint;
-        outputFile.close();
-        runs++;
-    }
-
-    return;
-}
 
 /*Simulate button pressed:
  * calls batch file that runs MATLAB scripts
@@ -207,7 +222,7 @@ void stepCalc(){
             prevStep=temp[col]/stepSize;
             delta=Step-prevStep;
             stepTemp.push_back(delta);
-            cout<<Step<<" "<<prevStep<<" "<<delta <<endl;//erase line, only for bebugging
+            //cout<<Step<<" "<<prevStep<<" "<<delta <<endl;//erase line, only for bebugging
         }
         stepMat.push_back(stepTemp);
         stepTemp.clear();
@@ -220,17 +235,7 @@ void stepCalc(){
 //NOT WORKING
 //will setup Teensy comms and convert stepMAT values to packets then communicate the packets
 void serialCom(){
-    QSerialPort port;
-    port.setPortName(COM_PORT);
-    port.setBaudRate(baud_rate);
-    port.setParity(QSerialPort::NoParity);
-    port.setStopBits(QSerialPort::OneStop);
-    port.setFlowControl(QSerialPort::NoFlowControl);
-    port.open(QIODevice::ReadWrite);
-    cout<<"port opened"<<endl;
-    QByteArray buffer = QByteArray::number(23) + "\n";
-    port.write(buffer);
-    port.flush();
+
     return;
 }
 
@@ -238,3 +243,5 @@ void serialCom(){
 void packetizer(){
     return;
 }
+
+
