@@ -12,8 +12,14 @@
 #include<QMediaPlayer>
 #include<QVideoWidget>
 #include<QMediaPlaylist>
+#include <QtSerialPort/QSerialPort>
+#include <QCoreApplication>
+#include <QStringList>
+#include <QDialog>
+#include<QFileDialog>
+#include<QBoxLayout>
+#include<QDockWidget>
 #include<windows.h>
-
 
 //Some unnecessary includes, added and removed includes while figuring out the file
 //will remove later
@@ -24,11 +30,6 @@
 using namespace std;
 
 
-int runs=0;
-bool simulated=true;
-bool init=false;
-vector <vector <float>> cableLenMat;
-vector <vector <float>> stepMat;
 
 
 void writePoint(float a, float b, float c);
@@ -41,12 +42,12 @@ class point {
       float x;
       float y;
       float z;
+      point(int, int, int);
 };
-point::point(float x, float y, float z){
-    x=x;
-    y=y;
-    z=z;
-
+point::point(int a, int b, int c){
+    x=(float) a;
+    y=(float) b;
+    z=(float) c;
 }
 
 class trajectory {
@@ -59,13 +60,17 @@ class trajectory {
       QString qDot;
       int len;
       vector<point> points;
+      trajectory();
+      void addPoint(float, float, float);
+      void writeToFile(QString);
+      void clearTraj();
 };
 trajectory::trajectory(void){
     trajDir="C:\\Users\\Martin\\Downloads\\CASPR-master\\CASPR-master\\data\\model_config\\models\\SCDM\\spatial_manipulators\\PoCaBot_spatial\\PoCaBot_spatial_trajectories.xml";
     fileHeader="<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!DOCTYPE trajectories SYSTEM \"../../../../templates/trajectories.dtd\">\n<trajectories>\n\t<joint_trajectories>\n\t\t<quintic_spline_trajectory id=\"traj_1\" time_definition = \"relative\" time_step=\"0.05\">\n\t\t\t<points>";
-    fileCloser="\n\t\t</quintic_spline_trajectory>\n\t</joint_trajectories>\n</trajectories>";
-    openPoint="\n\t\t\t\t<point>";
-    closePoint="\n\t\t\t</points>";
+    fileCloser="\n\t\t\t</points>\n\t\t</quintic_spline_trajectory>\n\t</joint_trajectories>\n</trajectories>";
+    openPoint="\n\t\t\t\t<point";
+    closePoint="\n\t\t\t\t</point>";
     qDot="\n\t\t\t\t\t<q_dot>0.0 0.0 0.0 0.0 0.0 0.0</q_dot>\n\t\t\t\t\t<q_ddot>0.0 0.0 0.0 0.0 0.0 0.0</q_ddot>";
     len=0;
     return;
@@ -80,20 +85,30 @@ void trajectory::clearTraj(void){
     points.clear();
     len=0;
 }
-void trajectory::writeToFile(void){
+void trajectory::writeToFile(QString fileName){
     int count, temp;
-    QFile outputFile(trajDir);
+    if(fileName==NULL){
+        fileName=trajDir;
+    }
+    QFile outputFile(fileName);
     outputFile.open((QIODevice::WriteOnly | QIODevice::Text));
     QTextStream out(&outputFile);
     out<<fileHeader;
     temp=points.size();
     for(count=0; count<temp; count++){
         float a=points[count].x, b=points[count].y, c=points[count].z;
+        cout<< a<<b<<c<<endl;
         a=a/100;
         b=b/100;
         c=c/100;
+        cout<< a<<b<<c<<endl;
         QString coor = "\n\t\t\t\t\t<q>" + QString::number(a) + " " + QString::number(b) + " " + QString::number(c)+" 0.0 0.0 0.0</q>";
-        out<<openPoint<<coor<<qDot<<closePoint;
+        if(count==0){
+            out<<openPoint<<">"<<coor<<qDot<<closePoint;
+        }
+        else{
+            out<<openPoint<<" time=\""<<count<<".0\">"<<coor<<qDot<<closePoint;
+        }
     }
     out<<fileCloser;
     outputFile.close();
@@ -101,11 +116,19 @@ void trajectory::writeToFile(void){
 }
 
 
+
+bool simulated=true;
+trajectory traj;
+vector <vector <float>> cableLenMat;
+vector <vector <float>> stepMat;
+
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    ui->dockWidget->setTitleBarWidget(new QWidget());
 
 }
 
@@ -119,20 +142,19 @@ MainWindow::~MainWindow()
 */
 void MainWindow::on_confirmbutton_clicked()
 {
-    if(!init){
-        trajectory traj();
-        init=true;
-    }
     int x = ui->lineEdit->text().toFloat();
     int y = ui->lineEdit_2->text().toFloat();
     int z = ui->lineEdit_3->text().toFloat();
     traj.addPoint(x,y,z);
+    ui->lcdNumber->display(traj.len);
+    cout<<traj.len<<endl;
+
 }
 /*Finish button pressed:
  * XML trajectory is completed with tailing strings to match CASPR format.
 */
 void MainWindow::on_confirmbutton_2_pressed(){
-    traj.writeToFile();
+    traj.writeToFile(NULL);
     return;
 }
 
@@ -157,17 +179,25 @@ void MainWindow::on_confirmbutton_3_clicked()
 void MainWindow::on_confirmbutton_4_clicked()
 {
     if(simulated==true){
+
+        QPalette pal = palette();
+
+
         QMediaPlayer* player = new QMediaPlayer;
         QVideoWidget* vw= new QVideoWidget;
+        vw->setAspectRatioMode(Qt::IgnoreAspectRatio);
         player->setVideoOutput(vw);
         QMediaPlaylist* playlist =new QMediaPlaylist();
+        pal.setColor(QPalette::Background, Qt::transparent);
+        vw->setPalette(pal);
         //match directory with the directory where video is saved
         playlist->addMedia(QUrl::fromLocalFile("C:/Users/Martin/Downloads/CASPR-master/CASPR-master/data/videos/kinematics_gui_output.avi"));
-        playlist->setPlaybackMode(QMediaPlaylist::Loop);
-        vw->setGeometry(100,100,300,400);
-        vw->show();
+        playlist->setPlaybackMode(QMediaPlaylist::CurrentItemOnce);
+        //vw->setGeometry(100,100,300,400);
+        ui->dockWidget->setWidget(vw);
         player->setPlaylist(playlist);
         player->play();
+
     }
     else{
         cout<<"simulation not ran yet."<<endl;
@@ -209,7 +239,7 @@ void MainWindow::on_confirmbutton_5_clicked()
  * stepMat= 8xN matrix where each row is a cable.
 */
 void stepCalc(){
-    int row,rowLen,col,diffSteps;
+    int row,rowLen,col;
     float delta;
     int Step, prevStep;
     std::vector <float> temp;
@@ -222,7 +252,6 @@ void stepCalc(){
             prevStep=temp[col]/stepSize;
             delta=Step-prevStep;
             stepTemp.push_back(delta);
-            //cout<<Step<<" "<<prevStep<<" "<<delta <<endl;//erase line, only for bebugging
         }
         stepMat.push_back(stepTemp);
         stepTemp.clear();
@@ -245,3 +274,54 @@ void packetizer(){
 }
 
 
+void MainWindow::openF(){
+    int temp=0,count;
+    float a, b,c;
+    cout<<"testO"<<endl;
+    QString fileName = QFileDialog::getOpenFileName(this,
+            tr("Open Trajectory"), "/home", tr("XML Files (*.XML)"));
+    traj.clearTraj();
+    QFile inputFile(fileName);
+    if (inputFile.open(QIODevice::ReadOnly | QIODevice::Text)){
+       QTextStream in(&inputFile);
+       while (!in.atEnd()){
+          temp++;
+          QString line = in.readLine();
+       }
+       inputFile.close();
+    }
+    if (inputFile.open(QIODevice::ReadOnly | QIODevice::Text)){
+       QTextStream in(&inputFile);
+       for(count=0; count<temp-4; count++){
+           QString line = in.readLine();
+           if(count>5){
+               if((count-7)%5==0){
+                   line.remove(0,8);
+                   QStringList list = line.split(QRegExp("\\s+"), QString::SkipEmptyParts);
+                   a=100*list[0].toFloat();
+                   b=100*list[1].toFloat();
+                   c=100*list[2].toFloat();
+                   traj.addPoint(a,b,c);
+                   cout<<line.toStdString()<<endl;
+               }
+           }
+
+       }
+       inputFile.close();
+    }
+    ui->lcdNumber->display(traj.len);
+    return;
+}
+void MainWindow::newF(){
+    cout<<"testN"<<endl;
+    traj.clearTraj();
+    ui->lcdNumber->display(traj.len);
+    return;
+}
+void MainWindow::saveF(){
+    QString fileName = QFileDialog::getSaveFileName(this,
+            tr("Save Trajectory"), "/home", tr("XML Files (*.XML)"));
+    traj.writeToFile(fileName);
+    cout<<"testS"<<endl;
+    return;
+}
